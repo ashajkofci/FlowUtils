@@ -26,7 +26,7 @@ logicle_extension = Extension(
         'flowutils/logicle_c_ext/_logicle.c',
         'flowutils/logicle_c_ext/logicle.c'
     ],
-    include_dirs=[np.get_include(), 'flowutils/logicle_c_ext'],
+    include_dirs=[os.environ['NUMPY_INCLUDE_PATH'], 'flowutils/logicle_c_ext'],
     extra_compile_args=['-std=c99']
 )
 
