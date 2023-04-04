@@ -2,6 +2,7 @@
 Setup script for the FlowUtils package
 """
 from setuptools import setup, Extension, dist
+import os
 
 # read in version string
 VERSION_FILE = 'flowutils/_version.py'
@@ -15,7 +16,6 @@ if __version__ is None:
 # This retrieves a version at build time compatible with run time version
 # override inspection for import not at top of file
 # this has to be imported here, after fetching the NumPy egg
-import numpy as np  # noqa: E402
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -36,7 +36,7 @@ gating_extension = Extension(
         'flowutils/gating_c_ext/_gate_helpers.c',
         'flowutils/gating_c_ext/gate_helpers.c'
     ],
-    include_dirs=[np.get_include(), 'flowutils/gating_c_ext'],
+    include_dirs=[os.environ['NUMPY_INCLUDE_PATH'], 'flowutils/gating_c_ext'],
     extra_compile_args=['-std=c99']
 )
 
