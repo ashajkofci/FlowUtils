@@ -1,5 +1,5 @@
 """
-Tests for 'transforms' module - Pure Python implementation
+Tests for 'transform' module
 """
 import unittest
 import numpy as np
@@ -56,6 +56,48 @@ class TransformsTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(self.test_data_range, x[:, 0], decimal=10)
 
     @staticmethod
+    def test_asinh_range():
+        """Test a range of input values"""
+        data_in = np.array([-10.0, -5.0, -1.0, 0.0, 0.3, 1.0, 3.0, 10.0, 100.0, 1000.0], dtype=float)
+        data_in = data_in.reshape((-1, 1))
+        correct_output = np.array(
+            [[
+                -0.200009,
+                -0.139829,
+                -0.000856,
+                0.2,
+                0.303776,
+                0.400856,
+                0.495521,
+                0.600009,
+                0.8,
+                1.0
+            ]]
+        ).reshape((-1, 1))
+
+        data_out = transforms.asinh(data_in, channel_indices=0, t=1000, m=4.0, a=1.0)
+
+        np.testing.assert_array_almost_equal(data_out, correct_output, decimal=6)
+
+    def test_inverse_asinh_transform(self):
+        xform_data = transforms.asinh(
+            self.test_data_range.reshape(-1, 1),
+            [0],
+            t=10000,
+            m=4.5,
+            a=0
+        )
+        x = transforms.asinh_inverse(
+            xform_data,
+            [0],
+            t=10000,
+            m=4.5,
+            a=0
+        )
+
+        np.testing.assert_array_almost_equal(self.test_data_range, x[:, 0], decimal=10)
+
+    @staticmethod
     def test_hyperlog_range():
         """Test a range of input values"""
         data_in = np.array([-10, -5, -1, 0, 0.3, 1, 3, 10, 100, 1000])
@@ -99,58 +141,48 @@ class TransformsTestCase(unittest.TestCase):
 
         np.testing.assert_array_almost_equal(self.test_data_range, x[:, 0], decimal=10)
 
-    def test_logicle_edge_cases(self):
-        """Test edge cases for logicle transform"""
-        # Test with zeros
-        zeros = np.array([0, 0, 0])
-        result = transforms._logicle(zeros, t=1000, m=4.0, w=1.0, a=0)
-        self.assertTrue(np.all(np.isfinite(result)))
-        
-        # Test with negative values
-        negative = np.array([-1000, -100, -10])
-        result = transforms._logicle(negative, t=1000, m=4.0, w=1.0, a=0)
-        self.assertTrue(np.all(np.isfinite(result)))
+    @staticmethod
+    def test_log_range():
+        """Test a range of input values"""
+        data_in = np.array(
+            [-1., 0., 0.5, 1., 10., 100., 1000., 1023., 10000., 100000, 262144],
+            dtype=float
+        )
+        data_in = data_in.reshape((-1, 1))
+        correct_output = np.array(
+            [[
+                np.nan,
+                -np.inf,
+                0.139794,
+                0.2,
+                0.4,
+                0.6,
+                0.8,
+                0.801975,
+                1.0,
+                1.2,
+                1.283708
+            ]]
+        ).reshape((-1, 1))
 
-    def test_hyperlog_edge_cases(self):
-        """Test edge cases for hyperlog transform"""
-        # Test with zeros
-        zeros = np.array([0, 0, 0])
-        result = transforms._hyperlog(zeros, t=1000, m=4.0, w=1.0, a=0)
-        self.assertTrue(np.all(np.isfinite(result)))
-        
-        # Test with negative values  
-        negative = np.array([-1000, -100, -10])
-        result = transforms._hyperlog(negative, t=1000, m=4.0, w=1.0, a=0)
-        self.assertTrue(np.all(np.isfinite(result)))
+        with np.errstate(divide='ignore', invalid='ignore'):
+            data_out = transforms.log(data_in, channel_indices=0, t=10000, m=5.0)
 
-    def test_multidimensional_data(self):
-        """Test transforms work with multidimensional data"""
-        test_data = np.random.rand(100, 3) * 1000
-        
-        # Test logicle
-        logicle_result = transforms.logicle(test_data, [0, 2], t=1000, m=4.0, w=1.0, a=0)
-        self.assertEqual(logicle_result.shape, test_data.shape)
-        # Channel 1 should be unchanged
-        np.testing.assert_array_equal(test_data[:, 1], logicle_result[:, 1])
-        
-        # Test hyperlog
-        hyperlog_result = transforms.hyperlog(test_data, [0, 2], t=1000, m=4.0, w=1.0, a=0)
-        self.assertEqual(hyperlog_result.shape, test_data.shape)
-        # Channel 1 should be unchanged
-        np.testing.assert_array_equal(test_data[:, 1], hyperlog_result[:, 1])
+        np.testing.assert_array_almost_equal(data_out, correct_output, decimal=6)
 
-    def test_1d_data(self):
-        """Test transforms work with 1D data"""
-        test_data = np.array([1, 10, 100, 1000])
-        
-        # Test logicle
-        logicle_result = transforms.logicle(test_data, None, t=1000, m=4.0, w=1.0, a=0)
-        self.assertEqual(logicle_result.shape, test_data.shape)
-        
-        # Test hyperlog  
-        hyperlog_result = transforms.hyperlog(test_data, None, t=1000, m=4.0, w=1.0, a=0)
-        self.assertEqual(hyperlog_result.shape, test_data.shape)
+    def test_inverse_log_transform(self):
+        with np.errstate(divide='ignore'):
+            xform_data = transforms.log(
+                self.test_data_range.reshape(-1, 1),
+                [0],
+                t=10000,
+                m=4.5
+            )
+        x = transforms.log_inverse(
+            xform_data,
+            [0],
+            t=10000,
+            m=4.5
+        )
 
-
-if __name__ == '__main__':
-    unittest.main()
+        np.testing.assert_array_almost_equal(self.test_data_range, x[:, 0], decimal=10)

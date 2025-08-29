@@ -1,5 +1,5 @@
 """
-Pure Python implementation of logicle and hyperlog transforms for FlowUtils
+Pure Python implementation of logicle and hyperlog transforms
 Compatible with numpy v1.22
 """
 
