@@ -24,11 +24,13 @@ def load_fcs_data(fcs_path):
         fcs_path: Path to FCS file
         
     Returns:
-        dict: Dictionary with 'data' array and 'channels' list
+        dict: Dictionary with 'data' array, 'channels' list, and metadata
     """
     try:
-        # Try to import FlowCytometryTools
+        # Try to import FlowCytometryTools  
         from FlowCytometryTools import FCMeasurement
+        
+        print(f"Loading FCS file: {fcs_path}")
         
         # Load the FCS file
         sample = FCMeasurement(ID='Sample', datafile=fcs_path)
@@ -37,24 +39,33 @@ def load_fcs_data(fcs_path):
         data = sample.data.values
         channels = list(sample.data.columns)
         
-        print(f"✓ Loaded FCS file: {fcs_path}")
-        print(f"  Events: {data.shape[0]:,}")
-        print(f"  Channels: {data.shape[1]} ({', '.join(channels[:5])}{'...' if len(channels) > 5 else ''})")
-        print(f"  Data range: FL1 [{data[:, 0].min():.1f}, {data[:, 0].max():.1f}], FL2 [{data[:, 1].min():.1f}, {data[:, 1].max():.1f}]")
+        # Extract some metadata
+        metadata = {
+            'total_events': len(data),
+            'channels': channels,
+            'channel_count': len(channels)
+        }
         
-        return {'data': data, 'channels': channels}
+        print(f"✓ Successfully loaded FCS file: {fcs_path}")
+        print(f"  Events: {len(data):,}")
+        print(f"  Channels: {len(channels)}")
+        print(f"  Channel names: {', '.join(channels[:5])}{'...' if len(channels) > 5 else ''}")
+        
+        return {
+            'data': data,
+            'channels': channels,
+            'metadata': metadata,
+            'source': 'fcs_file'
+        }
         
     except ImportError:
-        print("⚠ FlowCytometryTools not available for real FCS file support.")
-        print("  Install with: pip install FlowCytometryTools")
-        print("  Or download from: https://github.com/eyurtsev/FlowCytometryTools")
-        print("  Falling back to simulated data...")
+        print("⚠ FlowCytometryTools not available. Install with:")
+        print("  pip install FlowCytometryTools")
+        print("  or conda install -c bioconda flowcytometrytools")
         return None
         
     except Exception as e:
-        print(f"✗ Error loading FCS file '{fcs_path}': {e}")
-        print("  Please check that the file exists and is a valid FCS format")
-        print("  Falling back to simulated data...")
+        print(f"✗ Error loading FCS file {fcs_path}: {str(e)}")
         return None
 
 
