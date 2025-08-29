@@ -1,52 +1,127 @@
-# FlowUtils
+# FlowUtils - Pure Python Flow Cytometry Transforms
 
 [![PyPI license](https://img.shields.io/pypi/l/flowutils.svg?colorB=dodgerblue)](https://pypi.python.org/pypi/flowutils/)
 [![PyPI pyversions](https://img.shields.io/pypi/pyversions/flowutils.svg)](https://pypi.python.org/pypi/flowutils/)
 [![PyPI version](https://img.shields.io/pypi/v/flowutils.svg?colorB=blue)](https://pypi.python.org/pypi/flowutils/)
-[![DOI](https://zenodo.org/badge/15146734.svg)](https://zenodo.org/badge/latestdoi/15146734)
 
-[![Build & test (master)](https://github.com/whitews/FlowUtils/actions/workflows/tests_master.yml/badge.svg)](https://github.com/whitews/FlowUtils/actions/workflows/tests_master.yml)
-[![Build & test (develop)](https://github.com/whitews/FlowUtils/actions/workflows/tests_develop.yml/badge.svg)](https://github.com/whitews/FlowUtils/actions/workflows/tests_develop.yml)
-[![Coverage](https://codecov.io/gh/whitews/FlowUtils/branch/master/graph/badge.svg)](https://codecov.io/gh/whitews/flowutils)
-[![Documentation Status](https://readthedocs.org/projects/flowutils/badge/?version=latest)](https://flowutils.readthedocs.io/en/latest/?badge=latest)
+FlowUtils is a **pure Python** package providing optimized implementations of 
+**Logicle** and **Hyperlog** transforms for flow cytometry data analysis. 
 
-FlowUtils is a Python package containing various utility functions related
-to flow cytometry analysis, primarily focused on compensation,
-transformation, and gating tasks commonly used within the flow community.
+This library has been completely rewritten in pure Python to provide:
+- **Zero C dependencies** - No compilation required
+- **NumPy 1.22+ compatibility** - Works with modern NumPy versions  
+- **Mathematical accuracy** - Faithful implementation of published algorithms
+- **Clean API** - Simple, focused interface for transform operations
 
-FlowUtils is part of a suite of Python libraries for analyzing flow 
-cytometry data.  It was developed as an extension to the light-weight 
-[FlowIO library](https://github.com/whitews/FlowIO). FlowIO reads and 
-writes Flow Cytometry Standard (FCS) files, and has zero dependencies. 
-For higher level interaction with flow cytometry data, including 
-GatingML & FlowJo 10 support, see the related 
-[FlowKit project](https://github.com/whitews/FlowKit).
+## Key Features
+
+- **Logicle Transform**: Bi-exponential transform for flow cytometry data with both positive and negative values
+- **Hyperlog Transform**: Flexible log-like transform optimized for flow cytometry applications  
+- **Inverse Transforms**: Both forward and inverse transformations with high precision
+- **Multi-channel Support**: Efficient processing of multi-dimensional flow cytometry datasets
+- **Extensive Testing**: Comprehensive test suite ensuring mathematical accuracy
 
 ## Installation
 
-***Note: FlowUtils uses C extensions for significant performance 
-improvements. For the most common platforms and Python versions, pre-built
-binaries are available in PyPI (and installable via pip).***
-
-***If a pre-built binary of FlowUtils is not available for your environment,
-then the C extensions must be compiled using the source package. NumPy 
-must be installed prior to compiling FlowUtils. If compiling using `gcc`, version 5 or later is required.***
-
-***Compiling FlowUtils from source can also result in NumPy C API incompatibilities. [See the NumPy docs for more information](https://numpy.org/devdocs/user/depending_on_numpy.html#understanding-numpy-s-versioning-and-api-abi-stability).***
-
 ### From PyPI
 
-```
+```bash
 pip install flowutils
 ```
 
 ### From GitHub source code
 
-```
-pip install numpy>=1.20
-
-git clone https://github.com/whitews/flowutils
+```bash
+git clone https://github.com/ashajkofci/flowutils
 cd flowutils
-
-python setup.py install
+pip install .
 ```
+
+## Quick Start
+
+```python
+import numpy as np
+from flowutils import transforms
+
+# Sample flow cytometry data
+data = np.array([-1000, -100, 0, 100, 1000, 10000])
+
+# Apply Logicle transform
+logicle_data = transforms.logicle(data, channel_indices=None, t=10000, m=4.5, w=0.5, a=0)
+
+# Apply Hyperlog transform  
+hyperlog_data = transforms.hyperlog(data, channel_indices=None, t=10000, m=4.5, w=0.5, a=0)
+
+# Inverse transforms
+original_logicle = transforms.logicle_inverse(logicle_data, channel_indices=None, t=10000, m=4.5, w=0.5, a=0)
+original_hyperlog = transforms.hyperlog_inverse(hyperlog_data, channel_indices=None, t=10000, m=4.5, w=0.5, a=0)
+```
+
+## Multi-channel Example
+
+```python
+import numpy as np
+from flowutils import transforms
+
+# Multi-channel flow cytometry data (1000 events, 3 channels)
+data = np.random.rand(1000, 3) * 10000
+
+# Transform only fluorescence channels (0 and 2), leave scatter channel (1) unchanged
+transformed = transforms.logicle(data, channel_indices=[0, 2], t=10000, m=4.5, w=0.5, a=0)
+```
+
+## Transform Parameters
+
+Both transforms accept the following parameters:
+
+- **t**: Top of the scale (e.g., 262144 for typical flow cytometry)
+- **m**: Number of decades the true logarithmic scale approaches at the high end
+- **w**: Number of decades in the approximately linear region  
+- **a**: Number of additional negative decades
+
+## Mathematical Background
+
+### Logicle Transform
+
+The Logicle transformation implements the bi-exponential function as defined in:
+
+> Moore WA and Parks DR. Update for the logicle data scale including operational code implementations. *Cytometry A*, 2012:81A(4):273–277.
+
+### Hyperlog Transform  
+
+The Hyperlog transformation implements the generalized logarithm as defined in:
+
+> Bagwell CB. Hyperlog-a flexible log-like transform for negative, zero, and positive valued data. *Cytometry A*, 2005:64(1):34–42.
+
+## Performance Notes
+
+This pure Python implementation prioritizes:
+- **Compatibility**: Works with NumPy 1.22+ and Python 3.7+
+- **Reliability**: No compilation dependencies or C API compatibility issues
+- **Accuracy**: High-precision mathematical implementations
+- **Maintainability**: Clean, readable Python code
+
+For applications requiring maximum performance with very large datasets, consider using optimization tools like Numba for just-in-time compilation.
+
+## Testing
+
+Run the test suite to verify the installation:
+
+```bash
+python -m unittest flowutils.tests.transform_tests
+```
+
+## Examples
+
+See the `examples/` directory for detailed usage examples:
+- `simple_example.py`: Basic usage demonstration
+- `transforms_example.py`: Comprehensive example with visualization
+
+## Requirements
+
+- Python ≥ 3.7
+- NumPy ≥ 1.22, < 2.0
+
+## License
+
+This project is licensed under the BSD License - see the LICENSE file for details.
