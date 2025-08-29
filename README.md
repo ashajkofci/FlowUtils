@@ -108,7 +108,14 @@ For applications requiring maximum performance with very large datasets, conside
 Run the test suite to verify the installation:
 
 ```bash
+# Run basic transform tests
 python -m unittest flowutils.tests.transform_tests
+
+# Run tests with simulated FCS data 
+python -m unittest flowutils.tests.test_fcs_data
+
+# Run all tests
+python -m unittest discover flowutils.tests
 ```
 
 ## Examples
@@ -116,6 +123,23 @@ python -m unittest flowutils.tests.transform_tests
 See the `examples/` directory for detailed usage examples:
 - `simple_example.py`: Basic usage demonstration
 - `transforms_example.py`: Comprehensive example with visualization
+- `fcs_comparison_notebook.ipynb`: Jupyter notebook with FL1-FL2 transform comparison plots
+
+### FL1-FL2 Transform Comparison
+
+The included Jupyter notebook (`examples/fcs_comparison_notebook.ipynb`) provides a comprehensive comparison of different transform methods applied to realistic flow cytometry data:
+
+- **Linear scaling** - Raw data visualization  
+- **Log-log transformation** - Traditional logarithmic scaling
+- **Hyperlog transformation** - FlowUtils hyperlog implementation
+- **Logicle transformation** - FlowUtils logicle implementation
+
+The notebook includes:
+- Simulated multi-population FL1-FL2 data
+- Side-by-side scatter plot comparisons  
+- Population density visualizations
+- Transform function behavior analysis
+- Statistical summaries and recommendations
 
 ## Requirements
 
