@@ -40,27 +40,44 @@ def load_fcs_data(fcs_path):
         print(f"✓ Loaded FCS file: {fcs_path}")
         print(f"  Events: {data.shape[0]:,}")
         print(f"  Channels: {data.shape[1]} ({', '.join(channels[:5])}{'...' if len(channels) > 5 else ''})")
+        print(f"  Data range: FL1 [{data[:, 0].min():.1f}, {data[:, 0].max():.1f}], FL2 [{data[:, 1].min():.1f}, {data[:, 1].max():.1f}]")
         
         return {'data': data, 'channels': channels}
         
     except ImportError:
-        print("⚠ FlowCytometryTools not available. Install with:")
-        print("  pip install FlowCytometryTools")
+        print("⚠ FlowCytometryTools not available for real FCS file support.")
+        print("  Install with: pip install FlowCytometryTools")
+        print("  Or download from: https://github.com/eyurtsev/FlowCytometryTools")
+        print("  Falling back to simulated data...")
         return None
         
     except Exception as e:
-        print(f"✗ Error loading FCS file: {e}")
+        print(f"✗ Error loading FCS file '{fcs_path}': {e}")
+        print("  Please check that the file exists and is a valid FCS format")
+        print("  Falling back to simulated data...")
         return None
 
 
 def create_simulated_fcs_data():
     """
-    Create simulated FCS data that mimics real flow cytometry characteristics
+    Create simulated FCS data that mimics real flow cytometry characteristics.
+    
+    This generates multi-population flow cytometry data with:
+    - Main cell population (positive FL1, moderate FL2) 
+    - Debris/background (low FL1, low FL2)
+    - Compensation artifacts (negative values from spectral spillover)
+    - Autofluorescence population (moderate both channels)
+    - Statistical noise and realistic parameter ranges
+    
+    Designed to match typical 4-color flow cytometry experiments with
+    fluorescence channels FL1 (FITC) and FL2 (PE) commonly used for
+    cell surface markers.
     
     Returns:
-        dict: Dictionary with 'data' array and 'channels' list
+        dict: Dictionary with 'data' array (Nx2) and 'channels' list ['FL1', 'FL2']
     """
-    print("📊 Creating simulated FCS data...")
+    print("📊 Creating simulated multi-population FCS data...")
+    print("   Mimicking real flow cytometry with FL1 (FITC) and FL2 (PE) channels")
     
     np.random.seed(42)  # For reproducible results
     n_events = 10000

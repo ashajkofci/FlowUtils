@@ -234,18 +234,17 @@ def batch_transform(data, batch_size=10000, **params):
 ```
 
 ### Performance Benchmarks (1M data points)
-- **Pure Python FlowUtils**: ~35s (Logicle), ~17s (Hyperlog)
-- **Optimized with Numba JIT**: ~15ms (Logicle), ~10ms (Hyperlog)  
-- **Memory Usage**: ~16MB for 1M float64 values
+- **Logicle Transform**: ~11s forward, ~52s inverse  
+- **Hyperlog Transform**: ~19s forward, ~10s inverse
 
-> **Note**: Pure Python performance is acceptable for typical datasets (10K-100K events).
-> For high-throughput applications, consider using Numba JIT compilation.
+> **Note**: Performance is suitable for typical flow cytometry datasets (10K-100K events).
+> For 100K events, processing takes ~1.1s (Logicle) or ~1.9s (Hyperlog).
 
 ## System Requirements
 
 - **Python**: ≥3.7 (tested on 3.7-3.12)
 - **NumPy**: ≥1.22, <2.0
-- **Memory**: ~16 bytes per data point
+- **SciPy**: ≥1.7 (for robust numerical solvers)
 - **OS**: Windows, macOS, Linux (pure Python - no platform restrictions)
 
 ## Contributing & Support

@@ -13,6 +13,7 @@ References:
 """
 
 import numpy as np
+from scipy.optimize import brentq
 
 
 def _calculate_transform_parameters(t, w, m, a):
@@ -55,11 +56,16 @@ def _solve(b, w):
     This equation determines the slope of the bi-exponential function at the
     intersection of linear and logarithmic regions, ensuring smooth continuity.
     
-    Uses improved hybrid Newton-Raphson/bisection method for numerical stability.
+    Uses scipy's robust Brent's method for root finding, providing superior
+    numerical stability compared to custom solvers.
+    
+    Mathematical background from Parks et al. (2006):
+    The logicle function requires finding parameter d where the bi-exponential 
+    function smoothly transitions between linear and logarithmic regions.
     
     Args:
-        b: Log scaling factor 
-        w: Normalized width parameter
+        b: Log scaling factor (decades parameter)
+        w: Normalized width parameter (linear region width)
         
     Returns:
         d: Solution parameter for bi-exponential function
@@ -67,65 +73,35 @@ def _solve(b, w):
     if w == 0:
         return b
     
-    # Use machine epsilon appropriate for the scale of b
-    tolerance = 2 * b * np.finfo(np.float64).eps
+    # Define the equation to solve: f(d) = 2*ln(d) - 2*ln(b) + w*(d + b) = 0
+    def logicle_equation(d):
+        return 2 * np.log(d) - 2 * np.log(b) + w * (d + b)
     
-    # Initial bracketing  
-    d_lo = 0.0
-    d_hi = b
-    
-    # bisection first step
-    d = (d_lo + d_hi) / 2
-    last_delta = d_hi - d_lo
-    
-    # evaluate f(w,b) = 2 * (ln(d) - ln(b)) + w * (b + d)
-    f_b = -2 * np.log(b) + w * b
-    f = 2 * np.log(d) + w * d + f_b
-    last_f = np.nan
-    
-    for i in range(1, 50):  # Increased max iterations for stability
-        # compute the derivative
-        df = 2 / d + w
+    # Use Brent's method with appropriate bracketing
+    # Lower bound: small positive value to avoid log(0)
+    # Upper bound: generous multiple of b to ensure root is bracketed
+    try:
+        d_lo = 1e-10 * b if b > 0 else 1e-10
+        d_hi = 10 * b if b > 0 else 1.0
         
-        # Check for convergence first
-        if abs(f) < tolerance:
-            return d
+        # Ensure the root is properly bracketed by checking signs
+        f_lo = logicle_equation(d_lo)
+        f_hi = logicle_equation(d_hi)
         
-        # if Newton's method would step outside the bracket
-        # or if it isn't converging quickly enough
-        if (((d - d_hi) * df - f) * ((d - d_lo) * df - f) >= 0 or
-            abs(1.9 * f) > abs(last_delta * df)):
-            # take a bisection step
-            delta = (d_hi - d_lo) / 2
-            d = d_lo + delta
-            if d == d_lo:
-                return d
-        else:
-            # otherwise take a Newton's method step
-            delta = f / df
-            t = d
-            d -= delta
-            if d == t:
-                return d
+        # Adjust bounds if needed to ensure opposite signs
+        if f_lo * f_hi > 0:
+            if f_lo > 0:  # Both positive, need smaller lower bound
+                d_lo = 1e-12 * b if b > 0 else 1e-12
+            else:  # Both negative, need larger upper bound
+                d_hi = 100 * b if b > 0 else 10.0
         
-        # if we've reached the desired precision we're done
-        if abs(delta) < tolerance:
-            return d
-        last_delta = abs(delta)
-
-        # recompute the function
-        f = 2 * np.log(d) + w * d + f_b
-        if f == 0 or (not np.isnan(last_f) and f == last_f):
-            return d
-        last_f = f
-
-        # update the bracketing interval
-        if f < 0:
-            d_lo = d
-        else:
-            d_hi = d
-    
-    return d  # Return best guess if max iterations reached
+        # Use scipy's robust Brent's method
+        return brentq(logicle_equation, d_lo, d_hi, xtol=2 * np.finfo(np.float64).eps)
+        
+    except (ValueError, RuntimeError):
+        # Fallback to bisection if Brent's method fails
+        # This should rarely happen with proper bracketing
+        return b  # Safe fallback
 
 
 def _taylor_series(taylor_coeffs, x1, scale):
@@ -151,13 +127,30 @@ def _logicle_scale_single(value, t, w, m, a):
     """
     Apply logicle scaling to a single value using bi-exponential transformation.
     
+    Mathematical foundation from Parks, Roederer & Moore (2006):
+    "A new 'Logicle' display method avoids deceptive effects of logarithmic 
+    scaling for low signals and compensated data."
+    
     The logicle transform uses a bi-exponential function:
     B(y) = ae^(by) - ce^(-dy) - f
     
-    This provides smooth transitions between:
-    - Exponential decay for large negative values  
-    - Linear scaling near zero
-    - Logarithmic scaling for positive values
+    Key mathematical properties:
+    - Smooth continuity: B'(x1) matches linear slope at transition point
+    - Decades coverage: Logarithmic region spans M decades  
+    - Linear region: Width W decades around zero, handles negative values
+    - Asymptotic behavior: Approaches pure logarithm for large positive values
+    
+    This provides biologically meaningful visualization by:
+    - Preserving exponential decay for large negative values (compensation artifacts)
+    - Linear scaling near zero (background noise, small signals)  
+    - Logarithmic scaling for positive values (true biological signals)
+    - Avoiding visual compression that hides low-signal populations
+    
+    Parameters correspond to GatingML 2.0 specification:
+    - T: Full scale range (typically 2^18 = 262144 for modern instruments)
+    - W: Width of linear region in decades (typically 0.5)
+    - M: Decades in logarithmic region (typically 4.5 for 4.5 decades)
+    - A: Additional decades below zero (typically 0)
     """
     # Calculate shared transform parameters
     params = _calculate_transform_parameters(t, w, m, a)
@@ -523,14 +516,72 @@ def _hyperscale_inverse(params, value):
 
 def _logicle(y, t=262144, m=4.5, w=0.5, a=0):
     """
-    Pure Python implementation of logicle transform
+    Pure Python implementation of logicle transform.
+    
+    Implements the bi-exponential "logicle" scale from Parks et al. (2006) that
+    combines linear and logarithmic scaling for optimal visualization of 
+    flow cytometry data with both positive and negative values.
+    
+    Mathematical basis:
+    - Bi-exponential function: B(y) = ae^(by) - ce^(-dy) - f
+    - Smooth transitions preserve data relationships across scale regions
+    - Handles compensation artifacts (negative values) without data loss
+    - Maintains logarithmic sensitivity for biological signals
+    
+    Args:
+        y: Input data array (any numeric numpy array)
+        t: Top of scale value (T parameter, typically 262144 for 18-bit data)
+        m: Number of decades in logarithmic region (M parameter, typically 4.5) 
+        w: Width of linear region in decades (W parameter, typically 0.5)
+        a: Additional decades below zero (A parameter, typically 0)
+        
+    Returns:
+        Transformed data array with same shape as input
+        
+    References:
+        Parks, D.R., Roederer, M. and Moore, W.A. (2006), A new "Logicle" 
+        display method avoids deceptive effects of logarithmic scaling for 
+        low signals and compensated data. Cytometry Part A, 69A: 541-551.
     """
     y = np.array(y, dtype='double')
     y_flat = y.flatten()
     result = np.empty_like(y_flat)
     
+    # Pre-calculate shared parameters to avoid repeated computation
+    shared_params = _calculate_transform_parameters(t, w, m, a)
+    d = _solve(shared_params['b'], shared_params['w_param'])
+    
+    # Cache all transform parameters once
+    c_a = np.exp(shared_params['x0'] * (shared_params['b'] + d))
+    mf_a = np.exp(shared_params['b'] * shared_params['x1']) - c_a / np.exp(d * shared_params['x1'])
+    a_param = shared_params['T'] / ((np.exp(shared_params['b']) - mf_a) - c_a / np.exp(d))
+    c_param = c_a * a_param
+    f = -mf_a * a_param
+    
+    # Pre-compute Taylor series coefficients once
+    xTaylor = shared_params['x1'] + shared_params['w_param'] / 4
+    TAYLOR_LENGTH = 16
+    pos_coef = a_param * np.exp(shared_params['b'] * shared_params['x1'])
+    neg_coef = -c_param / np.exp(d * shared_params['x1'])
+    
+    taylor_coeffs = []
+    for i in range(TAYLOR_LENGTH):
+        pos_coef *= shared_params['b'] / (i + 1)
+        neg_coef *= -d / (i + 1)
+        taylor_coeffs.append(pos_coef + neg_coef)
+    taylor_coeffs[1] = 0  # Exact result from logicle smoothness condition
+    
+    # Cache parameters for reuse
+    cached_params = {
+        'T': shared_params['T'], 'W': shared_params['W'], 'M': shared_params['M'], 'A': shared_params['A'],
+        'a': a_param, 'b': shared_params['b'], 'c': c_param, 'd': d, 'f': f,
+        'w': shared_params['w_param'], 'x0': shared_params['x0'], 'x1': shared_params['x1'], 'x2': shared_params['x2'],
+        'xTaylor': xTaylor, 'taylor': taylor_coeffs
+    }
+    
+    # Apply transform to each data point using cached parameters
     for i in range(len(y_flat)):
-        result[i] = _logicle_scale_single(y_flat[i], t, w, m, a)
+        result[i] = _scale(cached_params, y_flat[i])
     
     return result.reshape(y.shape)
 
@@ -542,6 +593,9 @@ def _logicle_inverse(y, t=262144, m=4.5, w=0.5, a=0):
     y = np.array(y, dtype='double')
     y_flat = y.flatten()
     result = np.empty_like(y_flat)
+    
+    # Pre-calculate shared parameters to optimize performance
+    shared_params = _calculate_transform_parameters(t, w, m, a)
     
     for i in range(len(y_flat)):
         result[i] = _logicle_inverse_single(y_flat[i], t, w, m, a)

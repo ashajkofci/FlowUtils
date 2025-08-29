@@ -26,7 +26,7 @@ setup(
     author_email='whitews@gmail.com',
     license='BSD',
     url="https://github.com/whitews/flowutils",
-    install_requires=['numpy>=1.22,<2.0'],
+    install_requires=['numpy>=1.22,<2.0', 'scipy>=1.7'],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Science/Research',
