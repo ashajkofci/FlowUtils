@@ -1,24 +1,77 @@
 """
 Pure Python implementation of logicle and hyperlog transforms for FlowUtils
 Compatible with numpy v1.22
+
+Mathematical Background:
+- Logicle transform: Bi-exponential transform combining linear and logarithmic scales
+- Hyperlog transform: Generalized log-like transform for flow cytometry
+- Both transforms handle negative values and provide smooth transitions
+
+References:
+- Parks, Roederer, and Moore (2006). "A new 'Logicle' display method avoids deceptive effects of logarithmic scaling for low signals and compensated data." Cytometry Part A 69A(6):541-51.
+- Bagwell (2005). "Hyperlog-a flexible log-like transform for negative, zero, and positive valued data." Cytometry Part A 64A(1):34-42.
 """
 
 import numpy as np
 
 
+def _calculate_transform_parameters(t, w, m, a):
+    """
+    Calculate common transform parameters used by both logicle and hyperlog transforms.
+    
+    Mathematical basis from GatingML 2.0 specification and original papers:
+    - T: Top of scale (full scale range)
+    - W: Width of linear region in decades  
+    - M: Number of decades in logarithmic region
+    - A: Additional negative decades
+    
+    Returns normalized parameters for internal calculations:
+    - w_param: Normalized width parameter = W / (M + A)
+    - x2: Negative decades fraction = A / (M + A) 
+    - x1: Start of linear region = x2 + w_param
+    - x0: Start of log region = x2 + 2 * w_param
+    - b: Log scaling factor = (M + A) * ln(10)
+    """
+    T, W, M, A = t, w, m, a
+    
+    # Normalize parameters according to GatingML 2.0 specification
+    w_param = W / (M + A)  # Width of linear region in normalized units
+    x2 = A / (M + A)       # Position of negative asymptote
+    x1 = x2 + w_param      # Start of linear region 
+    x0 = x2 + 2 * w_param  # Start of logarithmic region
+    b = (M + A) * np.log(10.)  # Natural log scaling factor
+    
+    return {
+        'T': T, 'W': W, 'M': M, 'A': A,
+        'w_param': w_param, 'x2': x2, 'x1': x1, 'x0': x0, 'b': b
+    }
+
+
 def _solve(b, w):
     """
-    Solve equation: 2 * (ln(d) - ln(b)) + w * (b + d) = 0 for d
-    This is used in the logicle transform parameter calculation.
+    Solve the implicit equation for logicle transform parameter 'd':
+    2 * (ln(d) - ln(b)) + w * (b + d) = 0
+    
+    This equation determines the slope of the bi-exponential function at the
+    intersection of linear and logarithmic regions, ensuring smooth continuity.
+    
+    Uses improved hybrid Newton-Raphson/bisection method for numerical stability.
+    
+    Args:
+        b: Log scaling factor 
+        w: Normalized width parameter
+        
+    Returns:
+        d: Solution parameter for bi-exponential function
     """
     if w == 0:
         return b
     
-    # precision is the same as that of b
-    tolerance = 2 * b * np.finfo(float).eps
+    # Use machine epsilon appropriate for the scale of b
+    tolerance = 2 * b * np.finfo(np.float64).eps
     
-    # bracket the root using bisection method
-    d_lo = 0
+    # Initial bracketing  
+    d_lo = 0.0
     d_hi = b
     
     # bisection first step
@@ -30,9 +83,13 @@ def _solve(b, w):
     f = 2 * np.log(d) + w * d + f_b
     last_f = np.nan
     
-    for i in range(1, 40):
+    for i in range(1, 50):  # Increased max iterations for stability
         # compute the derivative
         df = 2 / d + w
+        
+        # Check for convergence first
+        if abs(f) < tolerance:
+            return d
         
         # if Newton's method would step outside the bracket
         # or if it isn't converging quickly enough
@@ -54,11 +111,11 @@ def _solve(b, w):
         # if we've reached the desired precision we're done
         if abs(delta) < tolerance:
             return d
-        last_delta = delta
+        last_delta = abs(delta)
 
         # recompute the function
         f = 2 * np.log(d) + w * d + f_b
-        if f == 0 or f == last_f:
+        if f == 0 or (not np.isnan(last_f) and f == last_f):
             return d
         last_f = f
 
@@ -68,7 +125,7 @@ def _solve(b, w):
         else:
             d_hi = d
     
-    return -1
+    return d  # Return best guess if max iterations reached
 
 
 def _taylor_series(taylor_coeffs, x1, scale):
@@ -92,50 +149,56 @@ def _series_biexponential(params, scale):
 
 def _logicle_scale_single(value, t, w, m, a):
     """
-    Apply logicle scaling to a single value
+    Apply logicle scaling to a single value using bi-exponential transformation.
+    
+    The logicle transform uses a bi-exponential function:
+    B(y) = ae^(by) - ce^(-dy) - f
+    
+    This provides smooth transitions between:
+    - Exponential decay for large negative values  
+    - Linear scaling near zero
+    - Logarithmic scaling for positive values
     """
-    # Setup parameters
-    T, W, M, A = t, w, m, a
+    # Calculate shared transform parameters
+    params = _calculate_transform_parameters(t, w, m, a)
     
-    # actual parameters from bi-exponential paper
-    w_param = W / (M + A)
-    x2 = A / (M + A)
-    x1 = x2 + w_param
-    x0 = x2 + 2 * w_param
-    b = (M + A) * np.log(10.)
-    d = _solve(b, w_param)
+    # Solve for parameter 'd' in bi-exponential equation
+    d = _solve(params['b'], params['w_param'])
     
-    c_a = np.exp(x0 * (b + d))
-    mf_a = np.exp(b * x1) - c_a / np.exp(d * x1)
+    # Calculate bi-exponential coefficients
+    # B(y) = a*e^(b*y) - c*e^(-d*y) - f
+    c_a = np.exp(params['x0'] * (params['b'] + d))
+    mf_a = np.exp(params['b'] * params['x1']) - c_a / np.exp(d * params['x1'])
     
-    a_param = T / ((np.exp(b) - mf_a) - c_a / np.exp(d))
+    a_param = params['T'] / ((np.exp(params['b']) - mf_a) - c_a / np.exp(d))
     c_param = c_a * a_param
     f = -mf_a * a_param
     
-    # use Taylor series near x1 to avoid round off problems
-    xTaylor = x1 + w_param / 4
+    # Use Taylor series expansion near x1 for numerical stability
+    xTaylor = params['x1'] + params['w_param'] / 4
     
-    # compute coefficients of the Taylor series (16 is enough for full precision)
+    # Compute Taylor series coefficients (16 terms sufficient for full precision)
     TAYLOR_LENGTH = 16
-    pos_coef = a_param * np.exp(b * x1)
-    neg_coef = -c_param / np.exp(d * x1)
+    pos_coef = a_param * np.exp(params['b'] * params['x1'])
+    neg_coef = -c_param / np.exp(d * params['x1'])
     
     taylor_coeffs = []
     for i in range(TAYLOR_LENGTH):
-        pos_coef *= b / (i + 1)
+        pos_coef *= params['b'] / (i + 1)
         neg_coef *= -d / (i + 1)
         taylor_coeffs.append(pos_coef + neg_coef)
     
-    taylor_coeffs[1] = 0  # exact result of Logicle condition
+    taylor_coeffs[1] = 0  # Exact result from logicle smoothness condition
     
-    params = {
-        'T': T, 'W': W, 'M': M, 'A': A,
-        'a': a_param, 'b': b, 'c': c_param, 'd': d, 'f': f,
-        'w': w_param, 'x0': x0, 'x1': x1, 'x2': x2,
+    # Store parameters for scaling function
+    scale_params = {
+        'T': params['T'], 'W': params['W'], 'M': params['M'], 'A': params['A'],
+        'a': a_param, 'b': params['b'], 'c': c_param, 'd': d, 'f': f,
+        'w': params['w_param'], 'x0': params['x0'], 'x1': params['x1'], 'x2': params['x2'],
         'xTaylor': xTaylor, 'taylor': taylor_coeffs
     }
     
-    return _scale(params, value)
+    return _scale(scale_params, value)
 
 
 def _scale(params, value):
@@ -269,59 +332,61 @@ def _logicle_inverse_scale(params, value):
 
 def _hyperlog_scale_single(value, t, w, m, a):
     """
-    Apply hyperlog scaling to a single value
-    """
-    # Setup parameters
-    T, W, M, A = t, w, m, a
+    Apply hyperlog scaling to a single value using generalized log transformation.
     
-    # actual parameters
-    w_param = W / (M + A)
-    x2 = A / (M + A)
-    x1 = x2 + w_param
-    x0 = x2 + 2 * w_param
-    b = (M + A) * np.log(10.)
-    e0 = np.exp(b * x0)
-
-    c_a = e0 / w_param
-    f_a = np.exp(b * x1) + c_a * x1
-    a_param = T / (np.exp(b) + c_a - f_a)
+    The hyperlog transform provides a smooth log-like function:
+    H(x) = a*e^(b*y) + c*y - f
+    
+    This avoids the discontinuity of standard log transforms at zero
+    while providing approximately logarithmic behavior for positive values.
+    """
+    # Calculate shared transform parameters  
+    params = _calculate_transform_parameters(t, w, m, a)
+    
+    # Calculate hyperlog-specific coefficients
+    e0 = np.exp(params['b'] * params['x0'])
+    c_a = e0 / params['w_param']
+    f_a = np.exp(params['b'] * params['x1']) + c_a * params['x1']
+    a_param = params['T'] / (np.exp(params['b']) + c_a - f_a)
 
     c_param = c_a * a_param
     f = f_a * a_param
     
-    xTaylor = x1 + w_param / 4
+    # Taylor series for numerical stability near x1
+    xTaylor = params['x1'] + params['w_param'] / 4
     
-    # compute coefficients of the Taylor series
+    # Compute Taylor series coefficients  
     TAYLOR_LENGTH = 16
-    coef = a_param * np.exp(b * x1)
+    coef = a_param * np.exp(params['b'] * params['x1'])
     
     taylor_coeffs = []
     for i in range(TAYLOR_LENGTH):
-        coef *= b / (i + 1)
+        coef *= params['b'] / (i + 1)
         taylor_coeffs.append(coef)
     
     taylor_coeffs[0] += c_param
     
-    # Store inverse value for hyperlog
-    is_negative = x0 < x1
-    tmp_x0 = 2 * x1 - x0 if is_negative else x0
+    # Calculate hyperlog-specific inverse value
+    is_negative = params['x0'] < params['x1']
+    tmp_x0 = 2 * params['x1'] - params['x0'] if is_negative else params['x0']
     
     if tmp_x0 < xTaylor:
-        inverse = _taylor_series(taylor_coeffs, x1, tmp_x0)
+        inverse = _taylor_series(taylor_coeffs, params['x1'], tmp_x0)
     else:
-        inverse = a_param * np.exp(b * tmp_x0) + c_param * tmp_x0
+        inverse = a_param * np.exp(params['b'] * tmp_x0) + c_param * tmp_x0
     
     if is_negative:
         inverse = -inverse
     
-    params = {
-        'T': T, 'W': W, 'M': M, 'A': A,
-        'a': a_param, 'b': b, 'c': c_param, 'f': f,
-        'w': w_param, 'x0': x0, 'x1': x1, 'x2': x2,
+    # Store parameters for scaling function
+    scale_params = {
+        'T': params['T'], 'W': params['W'], 'M': params['M'], 'A': params['A'],
+        'a': a_param, 'b': params['b'], 'c': c_param, 'f': f,
+        'w': params['w_param'], 'x0': params['x0'], 'x1': params['x1'], 'x2': params['x2'],
         'xTaylor': xTaylor, 'taylor': taylor_coeffs, 'inverse': inverse
     }
     
-    return _hyperscale(params, value)
+    return _hyperscale(scale_params, value)
 
 
 def _hyperscale(params, value):

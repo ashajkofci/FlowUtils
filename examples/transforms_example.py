@@ -35,22 +35,22 @@ print(f"A (negative decades): {A}")
 # Apply Logicle Transform
 print("\n1. LOGICLE TRANSFORM")
 print("-" * 30)
-logicle_data = transforms._logicle(data_raw, t=T, m=M, w=W, a=A)
+logicle_data = transforms.logicle(data_raw, None, t=T, m=M, w=W, a=A)
 print(f"Logicle output range: {logicle_data.min():.6f} to {logicle_data.max():.6f}")
 
 # Test round-trip accuracy
-logicle_inverse_data = transforms._logicle_inverse(logicle_data, t=T, m=M, w=W, a=A)
+logicle_inverse_data = transforms.logicle_inverse(logicle_data, None, t=T, m=M, w=W, a=A)
 logicle_error = np.max(np.abs(data_raw - logicle_inverse_data))
 print(f"Round-trip error: {logicle_error:.2e} (should be very small)")
 
 # Apply Hyperlog Transform
 print("\n2. HYPERLOG TRANSFORM")
 print("-" * 30)
-hyperlog_data = transforms._hyperlog(data_raw, t=T, m=M, w=W, a=A)
+hyperlog_data = transforms.hyperlog(data_raw, None, t=T, m=M, w=W, a=A)
 print(f"Hyperlog output range: {hyperlog_data.min():.6f} to {hyperlog_data.max():.6f}")
 
 # Test round-trip accuracy
-hyperlog_inverse_data = transforms._hyperlog_inverse(hyperlog_data, t=T, m=M, w=W, a=A)
+hyperlog_inverse_data = transforms.hyperlog_inverse(hyperlog_data, None, t=T, m=M, w=W, a=A)
 hyperlog_error = np.max(np.abs(data_raw - hyperlog_inverse_data))
 print(f"Round-trip error: {hyperlog_error:.2e} (should be very small)")
 

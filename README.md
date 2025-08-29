@@ -142,37 +142,7 @@ Implements the generalized hyperlog function as defined in:
 
 ## Migration from Previous Versions
 
-### Breaking Changes in v2.0+
 
-**Removed Features:**
-- ❌ Compensation functions (`flowutils.compensate`)
-- ❌ Gating functions (`flowutils.gating`) 
-- ❌ All transform functions except Logicle and Hyperlog
-- ❌ C extension dependencies
-
-**Updated API:**
-```python
-# ❌ Old API (no longer available)
-from flowutils import transforms
-data_log = transforms.log(data, [0], t=10000, m=4.5)
-
-# ✅ New API (Pure Python - Logicle & Hyperlog only)  
-from flowutils import transforms
-data_logicle = transforms.logicle(data, [0], t=10000, m=4.5, w=0.5, a=0)
-data_hyperlog = transforms.hyperlog(data, [0], t=10000, m=4.5, w=0.5, a=0)
-```
-
-### Why the Change?
-
-1. **Dependency Issues**: C extensions created NumPy version conflicts
-2. **Maintenance Burden**: Complex build systems across platforms  
-3. **Focus**: Most users only needed Logicle/Hyperlog transforms
-4. **Reliability**: Pure Python eliminates compilation issues
-
-For applications requiring compensation or gating, consider:
-- **FlowCytometryTools**: Comprehensive flow cytometry analysis
-- **FlowIO**: FCS file reading and basic operations  
-- **CytoFlow**: Advanced flow cytometry analysis workflows
 
 ## Testing & Validation
 
@@ -263,10 +233,13 @@ def batch_transform(data, batch_size=10000, **params):
     return np.concatenate(results)
 ```
 
-### Benchmarks (1M data points)
-- **Pure Python FlowUtils**: ~50ms (Logicle), ~30ms (Hyperlog)
-- **With Numba JIT**: ~15ms (Logicle), ~10ms (Hyperlog)  
+### Performance Benchmarks (1M data points)
+- **Pure Python FlowUtils**: ~35s (Logicle), ~17s (Hyperlog)
+- **Optimized with Numba JIT**: ~15ms (Logicle), ~10ms (Hyperlog)  
 - **Memory Usage**: ~16MB for 1M float64 values
+
+> **Note**: Pure Python performance is acceptable for typical datasets (10K-100K events).
+> For high-throughput applications, consider using Numba JIT compilation.
 
 ## System Requirements
 
