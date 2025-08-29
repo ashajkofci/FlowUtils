@@ -1,6 +1,6 @@
 """
-Defines public API for FlowUtils
+Defines public API for FlowUtils - Pure Python transforms library
 """
-from . import compensate, transforms, gating
+from . import transforms
 
 from ._version import __version__

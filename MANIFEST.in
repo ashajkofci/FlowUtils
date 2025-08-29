@@ -1,3 +1,4 @@
 include LICENSE
-recursive-include flowutils *.h
+include README.md
+recursive-include examples *.py
 prune flowutils/tests/
