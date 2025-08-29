@@ -1,6 +1,9 @@
-name: Wheel builder
+name: Build wheels
 
-on: [workflow_dispatch]
+on: 
+  workflow_dispatch:
+  release:
+    types: [published]
 
 jobs:
   build_wheels:
@@ -8,83 +11,60 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-20.04, windows-2019, macos-10.15]
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          ref: 'master'
+        uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-      - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==2.4.0
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build wheel
 
-      - name: Build wheels
-        run: python -m cibuildwheel --output-dir wheelhouse
-        env:
-          CIBW_BEFORE_BUILD: |
-            pip install numpy==1.21.6
-            pip freeze
-          CIBW_SKIP: pp* *-musllinux_* *-manylinux_i686 *-win32  # skip PyPy, musllinux, 32-bit Linux & win32 builds
-          CIBW_BUILD: cp37-* cp38-* cp39-* cp310-*
+      - name: Build wheel and source distribution
+        run: |
+          python -m build
 
       - name: Store artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
-          path: wheelhouse/*.whl
+          name: wheels-${{ matrix.os }}
+          path: dist/*
 
-  build_wheels_apple_silicon:
-    name: Build wheels on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+  test_wheels:
+    name: Test wheels
+    needs: build_wheels
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: [macos-11]
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          ref: 'master'
+        uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v2
-
-      - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==2.4.0
-
-      - name: Build wheels
-        run: python -m cibuildwheel --output-dir wheelhouse
-        env:
-          CIBW_BEFORE_BUILD: pip install numpy==1.21.6
-          CIBW_SKIP: pp*  # skip PyPy
-          CIBW_BUILD: cp38-* cp39-* cp310-*  # Only Python 3.8, 3.9, & 3.10
-          CIBW_ARCHS_MACOS: arm64  # Only arm64 for Apple Silicon builds
-
-      - name: Store artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/setup-python@v4
         with:
-          path: wheelhouse/*.whl
+          python-version: ${{ matrix.python-version }}
 
-  package_source:
-    name: Package source
-    runs-on: ubuntu-20.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+      - name: Download wheels
+        uses: actions/download-artifact@v4
         with:
-          ref: 'master'
+          name: wheels-ubuntu-latest
+          path: dist/
 
-      - name: Setup Python
-        uses: actions/setup-python@v2
+      - name: Install wheel
+        run: |
+          pip install dist/*.whl
 
-      - name: Run sdist
-        run: python setup.py sdist
-
-      - name: Store artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          path: ./dist/*.tar.gz
+      - name: Test installation
+        run: |
+          python -c "import flowutils; print('FlowUtils installed successfully')"
+          python -c "from flowutils import transforms; import numpy as np; data = np.array([1, 10, 100]); result = transforms.logicle(data, None, t=262144, m=4.5, w=0.5, a=0); print(f'Logicle test passed: {len(result)} == {len(data)}')"

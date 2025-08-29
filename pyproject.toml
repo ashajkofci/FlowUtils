@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "FlowUtils"
+dynamic = ["version"]
+description = "Pure Python Flow Cytometry Transforms (Logicle & Hyperlog)"
+readme = "README.md"
+license = {text = "BSD"}
+authors = [
+    {name = "Scott White", email = "whitews@gmail.com"}
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics"
+]
+requires-python = ">=3.7"
+dependencies = [
+    "numpy>=1.22,<2.0",
+    "scipy>=1.7"
+]
+
+[project.urls]
+Homepage = "https://github.com/whitews/flowutils"
+Repository = "https://github.com/whitews/flowutils"
+
+[tool.setuptools.dynamic]
+version = {attr = "flowutils._version.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["flowutils*"]
+
+[tool.coverage.run]
+source = ["flowutils"]
+omit = ["flowutils/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:"
+]
